@@ -25,4 +25,4 @@ if __name__ == "__main__":
         "edge_2": ys,
         "length": ws,
     })
-    df.to_csv("graph.csv", sep=",", index=False)
+    df.to_csv(args.out + ".csv", sep=",", index=False)
