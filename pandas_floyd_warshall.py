@@ -2,12 +2,14 @@ import pandas as pd
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--input", type=str, default="example_graph.csv")
-parser.add_argument("--output", type=str)
+parser.add_argument("algorithm")
+parser.add_argument("input", type=str)
+parser.add_argument("output", type=str)
 
 if __name__ == "__main__":
     args = parser.parse_args()
     df = pd.read_csv(args.input)
+    assert args.algorithm == "doubling"
     assert args.output.endswith(".csv")
     assert list(df.columns) == ["edge_1", "edge_2", "length"]
 
@@ -17,7 +19,6 @@ if __name__ == "__main__":
 
     # aggregate min edge values
     df_good = df_no_loops.groupby(["edge_1", "edge_2"])["length"].min().reset_index()
-    print(df_good)
     n_bound = max(max(df["edge_1"]), max(df["edge_2"])) + 1
 
     for k in range(n_bound):
