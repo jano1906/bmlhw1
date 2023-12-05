@@ -15,15 +15,15 @@ if __name__ == '__main__':
     max_len = max(df['length'])
     n_bound = n + 1
     INF = max_len * n_bound + 1
-    dp = [[INF for _ in range(n_bound)] for _ in range(n_bound)]
+    dist = [[INF for _ in range(n_bound)] for _ in range(n_bound)]
     #reading shortest edges from dataframe
     for _, row in df.iterrows():
         f, t, v = row['edge_1'], row['edge_2'], row['length']
-        dp[f][t] = min(dp[f][t], v)
+        dist[f][t] = min(dist[f][t], v)
     
     #removing self loops
     for x in range(n_bound):
-        dp[x][x] = 0
+        dist[x][x] = 0
     
     for k in range(n_bound):
         for i in range(n_bound):
