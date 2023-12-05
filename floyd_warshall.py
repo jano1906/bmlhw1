@@ -28,11 +28,11 @@ if __name__ == '__main__':
     for k in range(n_bound):
         for i in range(n_bound):
             for j in range(n_bound):
-                dp[i][j] = min(dp[i][j], dp[i][k] + dp[k][j])
+                dist[i][j] = min(dist[i][j], dist[i][k] + dist[k][j])
     result = pd.DataFrame(columns=['edge_1', 'edge_2', 'length'])
     for i in range(n_bound):
         for j in range(n_bound):
-            if i == j or dp[i][j] == INF:
+            if i == j or dist[i][j] == INF:
                 continue
-            result.loc[len(result)] = [i, j, dp[i][j]]
+            result.loc[len(result)] = [i, j, dist[i][j]]
     result.to_csv(args.output, index=False)
