@@ -14,7 +14,7 @@ if __name__ == '__main__':
     n = max(max(df['edge_1']), max(df['edge_2']))
     max_len = max(df['length'])
     n_bound = n + 1
-    INF = max_len * n_bound
+    INF = max_len * n_bound + 1
     dp = [[INF for _ in range(n_bound)] for _ in range(n_bound)]
     #reading shortest edges from dataframe
     for _, row in df.iterrows():
