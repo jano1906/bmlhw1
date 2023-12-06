@@ -47,16 +47,22 @@ if __name__ == "__main__":
     for in_file, out_file in zip(inputs, outputs):
         for option in options:
             with tempfile.NamedTemporaryFile(suffix=".csv") as fp:
-                subprocess.run(["python3", args.prog, option, in_file, fp.name])
+                subprocess.run(["python3", args.prog, option, in_file, fp.name], check=True)
                 prog_out = pd.read_csv(fp)
                 test_out = pd.read_csv(out_file)
-                prog_out = prog_out.sort_values(["edge_1", "edge_2"])
-                test_out = test_out.sort_values(["edge_1", "edge_2"])
+                prog_out = prog_out.sort_values(["edge_1", "edge_2"]).reset_index(drop=True)
+                test_out = test_out.sort_values(["edge_1", "edge_2"]).reset_index(drop=True)
                 ret = prog_out.equals(test_out)
                 rets.append(ret)
                 color = "g" if ret else "r"
                 comm = "OK" if ret else "ERROR"
                 comm += " " + os.path.basename(in_file)
                 print(colored_txt(comm, color))
+                if not ret:
+                    out = pd.concat([prog_out, test_out], axis=1)
+                    prog_columns = ["prog_" + c for c in prog_out.columns]
+                    test_columns = ["test_" + c for c in test_out.columns]
+                    out.columns = prog_columns + test_columns
+                    print(out[out.apply(lambda r: any(r[prog_columns].values != r[test_columns].values), axis=1)])
 
     print(f"tests passed: {sum(rets)} / {len(rets)}")

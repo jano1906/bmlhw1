@@ -1,5 +1,5 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col
+from pyspark.sql.functions import col, least
 from pyspark.sql import functions as F
 
 
@@ -12,19 +12,20 @@ def spark_floyd_warshall(input, output):
     spark = (
         SparkSession.builder.master("local[*]")
         .appName("Spark floyd warshall")
-        .config("spark.executor.memory", "1g")
-        .config("spark.driver.memory", "1g")
+        .config("spark.executor.memory", "4g")
+        .config("spark.driver.memory", "4g")
         .getOrCreate()
     )
-
+    spark.sparkContext.setCheckpointDir('/home/jano1906/studia/bmlhw1/checkpoints')
     df = spark.read.csv(input, header=True, inferSchema=True)
 
     assert df.columns == ["edge_1", "edge_2", "length"], f"got {df.columns}"
 
     # Aggregate min edge values
     df_good = (
-        df.groupBy(["edge_1", "edge_2"]).agg(F.min("length").alias("length")).cache()
+        df.groupBy(["edge_1", "edge_2"]).agg(F.min("length").alias("length"))
     )
+    df_good.checkpoint()
 
     # Get the upper bound for the iteration
     n_bound = (
@@ -36,7 +37,6 @@ def spark_floyd_warshall(input, output):
     )
 
     for k in range(n_bound):
-        print(k)
         # Filter DataFrame for a specific value of edge_1
         filtered_df_good = df_good.filter(df_good["edge_1"] == k)
 
@@ -54,15 +54,29 @@ def spark_floyd_warshall(input, output):
                 F.col("b.edge_2").alias("edge_2"),
                 (F.col("a.length") + F.col("b.length")).alias("length"),
             )
-            .cache()
         )
         # Update the main DataFrame
-        df_good = df_good.union(joined_df).cache()
-        df_good = (
-            df_good.groupBy(["edge_1", "edge_2"])
+        df_good2 = df_good.union(joined_df)
+        df_good3 = (
+            df_good2.groupBy(["edge_1", "edge_2"])
             .agg(F.min("length").alias("length"))
-            .cache()
         )
+        #df_good2 = df_good.alias("a").join(
+        #    joined_df.alias("b"),
+        #    (F.col("a.edge_1") == F.col("b.edge_1")) & (F.col("a.edge_2") == F.col("b.edge_2")),
+        #    "outer"
+        #).select(
+        #    F.col("a.edge_1").alias("edge_1"),
+        #    F.col("b.edge_2").alias("edge_2"),
+        #    (least(F.col("a.length"), F.col("b.length"))).alias("length")
+        #)
+        df_good = df_good3
+        df_good = df_good.cache()
+
+        if k % 5 == 0:
+            df_good = df_good.checkpoint()
+        
+        print(k)
 
     # Write result to a single CSV file
     df_good.toPandas().to_csv(output, header=True, index=False)
