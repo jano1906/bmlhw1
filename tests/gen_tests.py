@@ -21,9 +21,10 @@ if __name__ == "__main__":
     NODES = np.random.randint(10, 100, size=[args.n_tests])
     PROB = np.random.uniform(0.1, 0.8, size=[args.n_tests])
     MAX_W = np.random.randint(1, 20, size=[args.n_tests])
+    N_GRAPHS = np.random.randint(1, 4, size=[args.n_tests])
 
     for i in range(args.n_tests):
-        df_in = gen_graph.gen_graph(NODES[i], PROB[i], MAX_W[i])
+        df_in = gen_graph.gen_graph(NODES[i], PROB[i], MAX_W[i], N_GRAPHS[i])
         df_in.to_csv(os.path.join(args.in_dir, f"graph_{i}.csv"), sep=",", index=False)
         df_out = floyd_warshall.floyd_warshall(df_in)
         df_out.to_csv(os.path.join(args.out_dir, f"graph_{i}.csv"), sep=",", index=False)

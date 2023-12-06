@@ -14,8 +14,7 @@ if __name__ == "__main__":
     assert list(df.columns) == ["edge_1", "edge_2", "length"], f"got {df.columns}"
 
     # remove self-loops
-    loops = df["edge_1"] == df["edge_2"]
-    df_no_loops = df[~loops]
+    df_no_loops = df[df["edge_1"] != df["edge_2"]]
 
     # aggregate min edge values
     df_good = df_no_loops.groupby(["edge_1", "edge_2"])["length"].min().reset_index()
