@@ -19,10 +19,6 @@ def floyd_warshall(df):
         f, t, v = row['edge_1'], row['edge_2'], row['length']
         dist[f][t] = min(dist[f][t], v)
     
-    #removing self loops
-    for x in range(n_bound):
-        dist[x][x] = 0
-    
     for k in range(n_bound):
         for i in range(n_bound):
             for j in range(n_bound):
@@ -30,7 +26,7 @@ def floyd_warshall(df):
     result = pd.DataFrame(columns=['edge_1', 'edge_2', 'length'])
     for i in range(n_bound):
         for j in range(n_bound):
-            if i == j or dist[i][j] == INF:
+            if dist[i][j] == INF:
                 continue
             result.loc[len(result)] = [i, j, dist[i][j]]
     return result
