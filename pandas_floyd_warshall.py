@@ -10,8 +10,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
     df = pd.read_csv(args.input)
     assert args.algorithm == "doubling"
-    assert args.output.endswith(".csv")
-    assert list(df.columns) == ["edge_1", "edge_2", "length"]
+    assert args.output.endswith(".csv"), f"got {args.output}"
+    assert list(df.columns) == ["edge_1", "edge_2", "length"], f"got {df.columns}"
 
     # remove self-loops
     loops = df["edge_1"] == df["edge_2"]
