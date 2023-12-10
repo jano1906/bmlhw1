@@ -8,7 +8,7 @@ def spark_doubling(input, output):
     spark = (
         SparkSession.builder.master("local[*]")
         .appName("Spark floyd warshall")
-        .config("spark.executor.memory", "4g")
+        .config("spark.executor.memory", "8g")
         .config("spark.driver.memory", "4g")
         .getOrCreate()
     )
