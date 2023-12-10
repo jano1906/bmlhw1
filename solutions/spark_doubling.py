@@ -19,7 +19,7 @@ def spark_doubling(input, output):
 
     # Aggregate min edge values
     df_good = df.groupBy(["edge_1", "edge_2"]).agg(F.min("length").alias("length"))
-    df_good = df_good.localCheckpoint()
+    df_good = spark.createDataFrame(df_good.rdd)
 
     cur_paths, sum_cur_length = -1, -1
     iter = 0
@@ -43,8 +43,7 @@ def spark_doubling(input, output):
         df_good = df_good.groupBy(["edge_1", "edge_2"]).agg(
             F.min("length").alias("length")
         )
-        df_good.unpersist()
-        df_good = df_good.localCheckpoint()
+        df_good = spark.createDataFrame(df_good.rdd)
 
         print(cur_paths, sum_cur_length)
         print(
