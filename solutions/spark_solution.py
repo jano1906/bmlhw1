@@ -1,5 +1,5 @@
 import argparse
-from spark_floyd_warshall import spark_floyd_warshall
+from spark_doubling import spark_doubling
 from spark_linear import spark_linear
 
 parser = argparse.ArgumentParser()
@@ -15,4 +15,4 @@ if __name__ == "__main__":
     if args.algorithm == "linear":
         spark_linear(args.input, args.output)
     elif args.algorithm == "doubling":
-        spark_floyd_warshall(args.input, args.output)
+        spark_doubling(args.input, args.output)

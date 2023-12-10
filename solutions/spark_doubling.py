@@ -7,7 +7,7 @@ def get_max_from_col(df, column):
     return df.agg(F.max(col(column)).alias("max_column")).first()["max_column"]
 
 
-def spark_floyd_warshall(input, output):
+def spark_doubling(input, output):
     # TODO: spark.executor.memory and spark.driver.memory
     spark = (
         SparkSession.builder.master("local[*]")
@@ -16,7 +16,7 @@ def spark_floyd_warshall(input, output):
         .config("spark.driver.memory", "4g")
         .getOrCreate()
     )
-    spark.sparkContext.setCheckpointDir('/home/jano1906/studia/bmlhw1/checkpoints')
+    spark.sparkContext.setCheckpointDir('./checkpoints')
     df = spark.read.csv(input, header=True, inferSchema=True)
 
     assert df.columns == ["edge_1", "edge_2", "length"], f"got {df.columns}"
@@ -25,7 +25,7 @@ def spark_floyd_warshall(input, output):
     df_good = (
         df.groupBy(["edge_1", "edge_2"]).agg(F.min("length").alias("length"))
     )
-    df_good.checkpoint()
+    df_good.localCheckpoint()
 
     # Get the upper bound for the iteration
     n_bound = (
@@ -37,15 +37,10 @@ def spark_floyd_warshall(input, output):
     )
 
     for k in range(n_bound):
-        # Filter DataFrame for a specific value of edge_1
-        filtered_df_good = df_good.filter(df_good["edge_1"] == k)
-
-        # filtered_df_good.show()
-
         joined_df = (
             df_good.alias("a")
             .join(
-                filtered_df_good.alias("b"),
+                df_good.alias("b"),
                 F.col("a.edge_2") == F.col("b.edge_1"),
                 "inner",
             )
@@ -74,7 +69,7 @@ def spark_floyd_warshall(input, output):
         df_good = df_good.cache()
 
         if k % 5 == 0:
-            df_good = df_good.checkpoint()
+            df_good = df_good.localCheckpoint()
         
         print(k)
 

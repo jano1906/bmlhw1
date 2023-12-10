@@ -47,7 +47,7 @@ if __name__ == "__main__":
     for in_file, out_file in zip(inputs, outputs):
         for option in options:
             with tempfile.NamedTemporaryFile(suffix=".csv") as fp:
-                subprocess.run(["python3", args.prog, option, in_file, fp.name], check=True)
+                subprocess.run(["python3", os.path.abspath(args.prog), option, in_file, fp.name], check=True)
                 prog_out = pd.read_csv(fp)
                 test_out = pd.read_csv(out_file)
                 prog_out = prog_out.sort_values(["edge_1", "edge_2"]).reset_index(drop=True)
