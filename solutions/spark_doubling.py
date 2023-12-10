@@ -1,5 +1,5 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, sum
+from pyspark.sql.functions import sum
 from pyspark.sql import functions as F
 
 
@@ -12,23 +12,22 @@ def spark_doubling(input, output):
         .config("spark.driver.memory", "4g")
         .getOrCreate()
     )
-    spark.sparkContext.setCheckpointDir("./checkpoints")
     df = spark.read.csv(input, header=True, inferSchema=True)
 
     assert df.columns == ["edge_1", "edge_2", "length"], f"got {df.columns}"
 
     # Aggregate min edge values
-    df_good = df.groupBy(["edge_1", "edge_2"]).agg(F.min("length").alias("length"))
-    df_good = spark.createDataFrame(df_good.rdd)
+    df_best = df.groupBy(["edge_1", "edge_2"]).agg(F.min("length").alias("length"))
+    df_best = spark.createDataFrame(df_best.rdd)
 
     cur_paths, sum_cur_length = -1, -1
     iter = 0
     while True:
         iter += 1
         joined_df = (
-            df_good.alias("a")
+            df_best.alias("a")
             .join(
-                df_good.alias("b"),
+                df_best.alias("b"),
                 F.col("a.edge_2") == F.col("b.edge_1"),
                 "inner",
             )
@@ -39,19 +38,21 @@ def spark_doubling(input, output):
             )
         )
         # Update the main DataFrame
-        df_good = df_good.union(joined_df)
-        df_good = df_good.groupBy(["edge_1", "edge_2"]).agg(
+        df_best = df_best.union(joined_df)
+        df_best = df_best.groupBy(["edge_1", "edge_2"]).agg(
             F.min("length").alias("length")
         )
-        df_good = spark.createDataFrame(df_good.rdd)
+        df_best = spark.createDataFrame(df_best.rdd)
 
         print(cur_paths, sum_cur_length)
         print(
             f"[debug] {iter}, len of caches dfs {len(spark.sparkContext._jsc.getPersistentRDDs().items())}"
         )
 
-        next_cur_paths = df_good.count()
-        next_sum_cur_length = df_good.select(
+        df_best.printSchema()
+
+        next_cur_paths = df_best.count()
+        next_sum_cur_length = df_best.select(
             sum("length").alias("sum_length")
         ).collect()[0]["sum_length"]
 
@@ -61,4 +62,5 @@ def spark_doubling(input, output):
         cur_paths, sum_cur_length = next_cur_paths, next_sum_cur_length
 
     # Write result to a single CSV file
-    df_good.toPandas().to_csv(output, header=True, index=False)
+    df_best.toPandas().to_csv(output, header=True, index=False)
+    spark.stop()
