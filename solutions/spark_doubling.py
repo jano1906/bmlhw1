@@ -22,8 +22,9 @@ def spark_doubling(input, output):
     df_good = df_good.localCheckpoint()
 
     cur_paths, sum_cur_length = -1, -1
-
+    iter = 0
     while True:
+        iter += 1
         joined_df = (
             df_good.alias("a")
             .join(
@@ -47,7 +48,7 @@ def spark_doubling(input, output):
 
         print(cur_paths, sum_cur_length)
         print(
-            f"[debug] Len of caches dfs {len(spark.sparkContext._jsc.getPersistentRDDs().items())}"
+            f"[debug] {iter}, len of caches dfs {len(spark.sparkContext._jsc.getPersistentRDDs().items())}"
         )
 
         next_cur_paths = df_good.count()
