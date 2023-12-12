@@ -10,8 +10,8 @@ def spark_doubling(input, output):
     spark = (
         SparkSession.builder.master("local[*]")
         .appName("Spark doubling")
-        .config("spark.executor.memory", "8g")
-        .config("spark.driver.memory", "4g")
+        .config("spark.executor.memory", "32g")
+        .config("spark.driver.memory", "32g")
         .getOrCreate()
     )
     os.mkdir('_checkpoints')
