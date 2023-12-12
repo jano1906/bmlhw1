@@ -6,6 +6,7 @@ import shutil
 
 def spark_doubling(input, output):
     # TODO: spark.executor.memory and spark.driver.memory
+    dfs_best_queue = []
     spark = (
         SparkSession.builder.master("local[*]")
         .appName("Spark doubling")
@@ -21,17 +22,17 @@ def spark_doubling(input, output):
 
     # Aggregate min edge values
     df_best = df.groupBy(["edge_1", "edge_2"]).agg(F.min("length").alias("length"))
-    df_best = df_best.cache()
-    df_best = df_best.checkpoint()
-
+    dfs_best_queue.append(df_best.cache())
+    dfs_best_queue.append(dfs_best_queue[-1].checkpoint())
+    
     cur_paths, sum_cur_length = -1, -1
     iter = 0
     while True:
         iter += 1
         joined_df = (
-            df_best.alias("a")
+            dfs_best_queue[-1].alias("a")
             .join(
-                df_best.alias("b"),
+                dfs_best_queue[-1].alias("b"),
                 F.col("a.edge_2") == F.col("b.edge_1"),
                 "inner",
             )
@@ -43,13 +44,27 @@ def spark_doubling(input, output):
         )
         # Update the main DataFrame
         # TODO: test join method
-        df_best = df_best.union(joined_df)
+        df_best = dfs_best_queue[-1].union(joined_df)
         df_best = df_best.groupBy(["edge_1", "edge_2"]).agg(
             F.min("length").alias("length")
         )
-        df_best = df_best.cache()
-        if iter % 5 == 0:
-            df_best = df_best.checkpoint()
+        dfs_best_queue.append(df_best.cache())
+        
+        rm_checkpoints = []
+        if iter % 6 == 0:
+            for tmp in os.listdir("_checkpoints"):
+                for dir in os.listdir(os.path.join("_checkpoints", tmp)):
+                    rm_checkpoints.append(os.path.join("_checkpoints", tmp, dir))
+
+        if iter % 3 == 0:
+            dfs_best_queue.append(dfs_best_queue[-1].checkpoint())
+            for i in range(len(dfs_best_queue)-1):
+                dfs_best_queue[i].unpersist()
+            dfs_best_queue = [dfs_best_queue[-1]]
+        
+        for ckpt in rm_checkpoints:
+            shutil.rmtree(ckpt)
+        
         
         print(f"[debug] cur_paths: {cur_paths}, sum cur length: {sum_cur_length}")
         print(
@@ -58,8 +73,8 @@ def spark_doubling(input, output):
 
         df_best.printSchema()
 
-        next_cur_paths = df_best.count()
-        next_sum_cur_length = df_best.select(
+        next_cur_paths = dfs_best_queue[-1].count()
+        next_sum_cur_length = dfs_best_queue[-1].select(
             sum("length").alias("sum_length")
         ).collect()[0]["sum_length"]
 
@@ -69,6 +84,6 @@ def spark_doubling(input, output):
         cur_paths, sum_cur_length = next_cur_paths, next_sum_cur_length
 
     # Write result to a single CSV file
-    df_best.toPandas().to_csv(output, header=True, index=False)
+    dfs_best_queue[-1].toPandas().to_csv(output, header=True, index=False)
     spark.stop()
     shutil.rmtree("_checkpoints")
