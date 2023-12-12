@@ -3,6 +3,8 @@ import tempfile
 import subprocess
 import os
 import pandas as pd
+import time
+import shutil
 
 class style():
   RED = '\033[31m'
@@ -42,12 +44,16 @@ if __name__ == "__main__":
     outputs.sort()
 
     assert all(os.path.basename(i) == os.path.basename(o) for i, o in zip(inputs, outputs))
-    
+    os.makedirs("logs", exist_ok=True)
+    with open(os.path.join("logs", "times.txt"), "a") as f:
+        f.write("========================= \n")
     rets = []
     for in_file, out_file in zip(inputs, outputs):
         for option in options:
             with tempfile.NamedTemporaryFile(suffix=".csv") as fp:
+                start = time.time()
                 subprocess.run(["python3", os.path.abspath(args.prog), option, in_file, fp.name], check=True)
+                end = time.time()
                 prog_out = pd.read_csv(fp)
                 test_out = pd.read_csv(out_file)
                 prog_out = prog_out.sort_values(["edge_1", "edge_2"]).reset_index(drop=True)
@@ -56,7 +62,9 @@ if __name__ == "__main__":
                 rets.append(ret)
                 color = "g" if ret else "r"
                 comm = "OK" if ret else "ERROR"
-                comm += " " + os.path.basename(in_file)
+                comm += " " + os.path.basename(in_file) + f"time = {end - start}"
+                with open(os.path.join("logs", "times.txt"), "a") as f:
+                    f.write(f"{os.path.basename(in_file)}, {end - start}\n")
                 print(colored_txt(comm, color))
                 if not ret:
                     out = pd.concat([prog_out, test_out], axis=1)

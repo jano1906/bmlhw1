@@ -1,7 +1,8 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import sum
 from pyspark.sql import functions as F
-
+import os
+import shutil
 
 def spark_doubling(input, output):
     # TODO: spark.executor.memory and spark.driver.memory
@@ -12,13 +13,16 @@ def spark_doubling(input, output):
         .config("spark.driver.memory", "4g")
         .getOrCreate()
     )
+    os.mkdir('_checkpoints')
+    spark.sparkContext.setCheckpointDir('_checkpoints')
     df = spark.read.csv(input, header=True, inferSchema=True)
 
     assert df.columns == ["edge_1", "edge_2", "length"], f"got {df.columns}"
 
     # Aggregate min edge values
     df_best = df.groupBy(["edge_1", "edge_2"]).agg(F.min("length").alias("length"))
-    df_best = spark.createDataFrame(df_best.rdd)
+    df_best = df_best.cache()
+    df_best = df_best.checkpoint()
 
     cur_paths, sum_cur_length = -1, -1
     iter = 0
@@ -38,13 +42,16 @@ def spark_doubling(input, output):
             )
         )
         # Update the main DataFrame
+        # TODO: test join method
         df_best = df_best.union(joined_df)
         df_best = df_best.groupBy(["edge_1", "edge_2"]).agg(
             F.min("length").alias("length")
         )
-        df_best = spark.createDataFrame(df_best.rdd)
-
-        print(cur_paths, sum_cur_length)
+        df_best = df_best.cache()
+        if iter % 5 == 0:
+            df_best = df_best.checkpoint()
+        
+        print(f"[debug] cur_paths: {cur_paths}, sum cur length: {sum_cur_length}")
         print(
             f"[debug] {iter}, len of caches dfs {len(spark.sparkContext._jsc.getPersistentRDDs().items())}"
         )
@@ -64,3 +71,4 @@ def spark_doubling(input, output):
     # Write result to a single CSV file
     df_best.toPandas().to_csv(output, header=True, index=False)
     spark.stop()
+    shutil.rmtree("_checkpoints")

@@ -1,5 +1,5 @@
 #!/bin/bash
 
 cd tests
-python run_tests.py --prog ../solutions/spark_solution.py --no_linear # > explain.txt
-
+rm -rf _checkpoints
+python run_tests.py --prog ../solutions/spark_solution.py --in_dir krz_input --out_dir krz_output --no_doubling # > explain.txt
