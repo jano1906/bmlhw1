@@ -1,6 +1,6 @@
 import argparse
 from spark_doubling import spark_doubling
-from spark_linear import spark_linear
+from linear_better_but_bad import spark_linear
 
 parser = argparse.ArgumentParser()
 parser.add_argument("algorithm", choices=["linear", "doubling"])
