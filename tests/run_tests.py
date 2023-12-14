@@ -4,7 +4,6 @@ import subprocess
 import os
 import pandas as pd
 import time
-import shutil
 
 class style():
   RED = '\033[31m'
@@ -48,12 +47,14 @@ if __name__ == "__main__":
     with open(os.path.join("logs", "times.txt"), "a") as f:
         f.write("========================= \n")
     rets = []
+    total_time = 0
     for in_file, out_file in zip(inputs, outputs):
         for option in options:
             with tempfile.NamedTemporaryFile(suffix=".csv") as fp:
                 start = time.time()
                 subprocess.run(["python3", os.path.abspath(args.prog), option, in_file, fp.name], check=True)
                 end = time.time()
+                total_time += end - start
                 prog_out = pd.read_csv(fp)
                 test_out = pd.read_csv(out_file)
                 prog_out = prog_out.sort_values(["edge_1", "edge_2"]).reset_index(drop=True)
@@ -62,7 +63,7 @@ if __name__ == "__main__":
                 rets.append(ret)
                 color = "g" if ret else "r"
                 comm = "OK" if ret else "ERROR"
-                comm += " " + os.path.basename(in_file) + f"time = {end - start}"
+                comm += " " + os.path.basename(in_file) + f" time = {end - start}"
                 with open(os.path.join("logs", "times.txt"), "a") as f:
                     f.write(f"{os.path.basename(in_file)}, {end - start}\n")
                 print(colored_txt(comm, color))
@@ -73,4 +74,4 @@ if __name__ == "__main__":
                     out.columns = prog_columns + test_columns
                     print(out[out.apply(lambda r: any(r[prog_columns].values != r[test_columns].values), axis=1)])
 
-    print(f"tests passed: {sum(rets)} / {len(rets)}")
+    print(f"tests passed: {sum(rets)} / {len(rets)}, total time: {total_time}")
