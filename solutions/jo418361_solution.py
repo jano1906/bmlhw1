@@ -1,26 +1,34 @@
 import argparse
-from typing import Any
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 import os
-import shutil
+from py4j.java_gateway import java_import
 
 
 CHECKPOINT_DIR = "checkpoints"
 
 
 class MemoryManager:
-    def __init__(self, checkpoint_every_n, clear_checkpoints_every_n):
+    def __init__(self, sc, fs, checkpoint_every_n, clear_checkpoints_every_n):
         self.checkpoint_every_n = checkpoint_every_n
         self.clear_checkpoints_every_n = clear_checkpoints_every_n
         self._step = 0
         self._cache = {}
         self.protected_checkpoints = []
+        self.checkpoint_dir = sc.getCheckpointDir()
+        self.sc = sc
+        self.fs = fs
+
+    def list_checkpoint_dir(self):
+        dir_path = self.sc._jvm.Path(self.checkpoint_dir)
+        file_status_array = self.fs.listStatus(dir_path)
+        file_status_list = list(file_status_array)
+        return file_status_list
 
     def protect_cur_checkpoints(self):
-        for tmp in os.listdir(CHECKPOINT_DIR):
-            for dir in os.listdir(os.path.join(CHECKPOINT_DIR, tmp)):
-                self.protected_checkpoints.append(os.path.join(CHECKPOINT_DIR, tmp, dir))
+        file_status_list = self.list_checkpoint_dir()
+        for file_status in file_status_list:
+            self.protected_checkpoints.append(file_status.getPath())
 
     def checkpoint(self):
         for k in self._cache:
@@ -34,15 +42,15 @@ class MemoryManager:
         if (self._step % self.checkpoint_every_n) == 0:
             rm_checkpoints = []
             if (self._step % self.clear_checkpoints_every_n) == 0:
-                for tmp in os.listdir(CHECKPOINT_DIR):
-                    for dir in os.listdir(os.path.join(CHECKPOINT_DIR, tmp)):
-                        rm_checkpoints.append(os.path.join(CHECKPOINT_DIR, tmp, dir))
+                file_status_list = self.list_checkpoint_dir()
+                for file_status in file_status_list:
+                    rm_checkpoints.append(file_status.getPath())
     
             self.checkpoint()
             
             for ckpt in rm_checkpoints:
                 if ckpt not in self.protected_checkpoints:
-                    shutil.rmtree(ckpt)
+                    self.fs.delete(ckpt, True)
 
     def cache(self, **kwargs):
         for k, v in kwargs.items():
@@ -104,13 +112,7 @@ def solve_doubling(spark, mem, df):
 def solve_linear(spark, mem, df):
     df_edge = df.groupBy(["edge_1", "edge_2"]).agg(F.min("length").alias("length")).persist().checkpoint()
     mem.protect_cur_checkpoints()
-
-    best_paths = df_edge.withColumn(
-        "length_pair", F.struct("length", F.lit(1))
-    ).drop("length")
-
-    mem.cache(new_paths=best_paths, best_paths=best_paths)
-    mem.checkpoint()
+    mem.cache(new_paths=df_edge, best_paths=df_edge)
 
     iter_cnt = 0
 
@@ -127,12 +129,7 @@ def solve_linear(spark, mem, df):
             .select(
                 F.col("st.edge_1").alias("edge_1"),
                 F.col("nd.edge_2").alias("edge_2"),
-                F.struct(
-                    (F.col("st.length_pair.length") + F.col("nd.length")).alias(
-                        "length"
-                    ),
-                    (F.col("st.length_pair.col2") + 1).alias("col2"),
-                ).alias("length_pair"),
+                (F.col("st.length") + F.col("nd.length")).alias("length")
             )
         )
         mem.cache(new_paths=new_paths)
@@ -141,7 +138,7 @@ def solve_linear(spark, mem, df):
             mem["best_paths"].union(new_paths)
             .groupBy(["edge_1", "edge_2"])
             .agg(
-                F.min("length_pair").alias("length_pair"),
+                F.min("length").alias("length"),
             )
         )
         mem.cache(best_paths=best_paths)
@@ -160,9 +157,7 @@ def solve_linear(spark, mem, df):
         )
 
     # Write result to a single CSV file
-    return mem["best_paths"].select(
-        ["edge_1", "edge_2", "length_pair.length"]
-    ).withColumnRenamed("length_pair.length", "length")
+    return mem["best_paths"]
 
 
 def get_parser():
@@ -176,17 +171,27 @@ def main(args):
 
     spark = (
         SparkSession.builder.master("local[*]")
-        .appName("Spark doubling")
-        .config("spark.executor.memory", "32g")
-        .config("spark.driver.memory", "32g")
+        .appName("Paths")
+        .config("spark.executor.memory", "3g")
+        .config("spark.driver.memory", "2g")
         .getOrCreate()
     )
     os.makedirs(CHECKPOINT_DIR, exist_ok=True)
-    spark.sparkContext.setCheckpointDir(CHECKPOINT_DIR)
+    sc = spark.sparkContext
+    sc.setCheckpointDir(CHECKPOINT_DIR)
+
+    java_import(sc._jvm, 'org.apache.hadoop.fs.Path')
+    java_import(sc._jvm, 'org.apache.hadoop.fs.FileSystem')
+    java_import(sc._jvm, 'org.apache.hadoop.conf.Configuration')
+    hadoop_conf = sc._jsc.hadoopConfiguration()
+    # Create a FileSystem object
+    fs = sc._jvm.FileSystem.get(hadoop_conf)
+    # Specify the path of the directory you want to list (checkpoint directory in this case)
+
     df = spark.read.csv(args.input, header=True, inferSchema=True)
     assert df.columns == ["edge_1", "edge_2", "length"], f"got {df.columns}"
 
-    mem = MemoryManager(2, 1)
+    mem = MemoryManager(sc, fs, 2, 1)
     if args.algorithm == "linear":
         ret = solve_linear(spark, mem, df)
     elif args.algorithm == "doubling":
@@ -196,6 +201,9 @@ def main(args):
 
     # Write result to a single CSV file
     ret.toPandas().to_csv(args.output, header=True, index=False)
+    
+    fs.delete(sc._jvm.Path(sc.getCheckpointDir()), True)
+    fs.close()
     spark.stop()
 
 if __name__ == "__main__":
