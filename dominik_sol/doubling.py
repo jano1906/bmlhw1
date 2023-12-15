@@ -1,7 +1,5 @@
-import os
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
-import shutil
 
 
 def solve_doubling(inf, outf):
@@ -12,8 +10,6 @@ def solve_doubling(inf, outf):
         .config("spark.worker.memory", "2g")
         .getOrCreate()
     )
-
-    shutil.os.mkdir("checkpoints")
     spark.sparkContext.setCheckpointDir("checkpoints")
 
     best_paths_df = spark.read.csv(inf, header=True, inferSchema=True)
@@ -51,14 +47,6 @@ def solve_doubling(inf, outf):
             .agg(F.min("length").alias("length"))
         )
         new_paths_caches.append(new_best_paths.persist())
-
-        checkpoints_to_remove = []
-        for rdd_dir in os.listdir("checkpoints"):
-            for chckpt in os.listdir(f"checkpoints/{rdd_dir}"):
-                checkpoints_to_remove.append(
-                    os.path.join("checkpoints", rdd_dir, chckpt)
-                )
-
         new_paths_caches.append(new_paths_caches[-1].checkpoint())
 
         [cache.unpersist() for cache in new_paths_caches[:-1]]
@@ -75,9 +63,5 @@ def solve_doubling(inf, outf):
             break
         cur_paths, cur_lengths = paths, lengths
 
-        for checkpoint in checkpoints_to_remove:
-            shutil.rmtree(checkpoint)
-
     new_paths_caches[-1].toPandas().to_csv(outf, header=True, index=False)
     spark.stop()
-    shutil.rmtree("checkpoints")

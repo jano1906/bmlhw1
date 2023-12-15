@@ -1,7 +1,5 @@
-import os
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
-import shutil
 
 
 def solve_linear(inf, outf):
@@ -12,7 +10,6 @@ def solve_linear(inf, outf):
         .config("spark.worker.memory", "2g")
         .getOrCreate()
     )
-    os.mkdir("checkpoints")
     spark.sparkContext.setCheckpointDir("checkpoints")
     df = spark.read.csv(inf, header=True, inferSchema=True)
 
@@ -54,13 +51,6 @@ def solve_linear(inf, outf):
             ).persist()
         )
 
-        checkpoints_to_remove = []
-        for rdd_dir in os.listdir("checkpoints"):
-            for chckpt in os.listdir(f"checkpoints/{rdd_dir}"):
-                checkpoints_to_remove.append(
-                    os.path.join("checkpoints", rdd_dir, chckpt)
-                )
-
         total_best_paths = (
             total_best_paths.union(next_paths_df)
             .groupBy(["edge_1", "edge_2"])
@@ -81,9 +71,6 @@ def solve_linear(inf, outf):
         
         next_paths_df.unpersist()
 
-        for checkpoint in checkpoints_to_remove:
-            shutil.rmtree(checkpoint)
-
     # Write result to a single CSV file
     total_best_paths.select(
         ["edge_1", "edge_2", "length_pair.length"]
@@ -91,4 +78,3 @@ def solve_linear(inf, outf):
         outf, header=True, index=False
     )
     spark.stop()
-    shutil.rmtree("checkpoints")
