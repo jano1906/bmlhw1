@@ -1,5 +1,5 @@
 #!/bin/bash
 
 cd tests
-rm -rf _checkpoints
-python run_tests.py --prog ../solutions/spark_solution.py --in_dir inputs --out_dir outputs --no_doubling
+rm -rf checkpoints
+python run_tests.py --prog ../dominik_sol/main.py --in_dir krz_input --out_dir krz_output --no_doubling
